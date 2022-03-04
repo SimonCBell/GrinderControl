@@ -1,7 +1,20 @@
 #include <Arduino.h>
 #include <EEPROM.h>
+#include <U8g2lib.h>
 
-bool debug = 0;
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
+
+// Display settings
+uint8_t oled_i2c = 0x3C;
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
+
+
+bool debug = 1;
 const int downButtonPin = 11;
 const int upButtonPin = 12;
 const int grindButtonPin = 13;
@@ -97,6 +110,9 @@ void setup() {
 
   // initialize serial communication:
   if(debug){Serial.begin(9600);}
+
+  u8g2.setI2CAddress(oled_i2c * 2);
+  u8g2.begin();
 
 }
 
@@ -361,4 +377,11 @@ void loop() {
  
  state_machine_run();
  delay(10);
+
+  u8g2.clearBuffer();					// clear the internal memory
+  u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
+  u8g2.drawStr(0,10,"Hello World!");	// write something to the internal memory
+  if (debug){Serial.println("Hello world!");}
+  u8g2.sendBuffer();					// transfer internal memory to the display
+  delay(1000);  
 }
