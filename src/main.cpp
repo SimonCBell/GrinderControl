@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <EEPROM.h>
 
 bool debug = 0;
@@ -59,6 +60,18 @@ uint8_t buttons;
 
 uint8_t state = WAITING;
 
+// Method forward declarations
+void setup();
+void state_machine_run();
+void display_all_on();
+void blink_display();
+void deactivate_display();
+void display_time(float disp_time);
+void countdown_grind_time();
+uint8_t button_management();
+void loop();
+
+
 void setup() {
   // put your setup code here, to run once:
   pinMode(upButtonPin, INPUT);
@@ -85,13 +98,6 @@ void setup() {
   // initialize serial communication:
   if(debug){Serial.begin(9600);}
 
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
- 
- state_machine_run();
- delay(10);
 }
 
 void state_machine_run()
@@ -347,4 +353,12 @@ uint8_t button_management(){
      }
 
   return Button_action;    
+}
+
+
+void loop() {
+  // put your main code here, to run repeatedly:
+ 
+ state_machine_run();
+ delay(10);
 }
