@@ -1,7 +1,6 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <EEPROM.h>
-#include <U8g2lib.h>
+#include "display.h"
 
 #ifdef U8X8_HAVE_HW_SPI
 #include <SPI.h>
@@ -10,12 +9,11 @@
 #include <Wire.h>
 #endif
 
-// Display settings
-uint8_t oled_i2c = 0x3C;
-//U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
-char* display_buffer;
+
+char text_buffer[80];
+char str_number[20];
 unsigned long display_off_delay = 8 * 1000; // time after grind is finished that display stays active
-unsigned long time_grind_finished = 0;
+unsigned long time_grind_finished;
 
 
 bool debug = 1;
@@ -40,13 +38,14 @@ bool grindButtonPressed = false;
 int eeAddress = 0; //EEPROM address to start reading from
 float set_grind_weight = 10.0; //Variable to store data read from EEPROM.
 float previous_set_grind_weight = set_grind_weight;
-float set_grind_weight_eeprom;
+float set_grind_weight_eeprom = 0.0f;
 
 float current_weight = 0;
 float set_weight_incriment = 0.1;
 float max_grind_weight = 100;
 float min_grind_weight = 2;
-
+unsigned long time_last_setup_b_press;
+unsigned long time_exit_setup_after_last_presss = 5 * 1000;
 
 int secs;
 int tenths_secs;
@@ -55,26 +54,24 @@ double interval = 3;
 double previousCounter = 0; 
 double currentCounter = 0;
 
-int setup_time_counter = 0;
-int setup_time_limit = 200;
+
 
 enum State_enum {WAITING, SET_WEIGHT, GRIND, TRAILING_GRIND};
 enum Button_enum {NONE, BUTTON_UP, BUTTON_DOWN, BUTTON_GRIND};
 
-uint8_t button_management();
-uint8_t buttons;
+Button_enum buttons = NONE;
 
-uint8_t state = WAITING;
+State_enum state = WAITING;
 
 // Method forward declarations
 void setup();
 void machine_state_void();
+void update_machine_state();
 void run_machine();
 void display_all_on();
 void OLED_off();
-void OLED_display(float msg_num);
 void countdown_grind_time();
-uint8_t button_management();
+void button_management();
 void loop();
 void get_weight();
 
@@ -82,20 +79,47 @@ void get_weight();
 void setup() {
 
   // initialize serial communication:
-  if(debug){
-    Serial.begin(115200);
-    Serial.println("------------- setup ----------------------");
-  }
+  Serial.begin(57600);
+  Serial.println("------------- setup ----------------------");
+
+  //snprintf(display_buffer, 20, "Previous set weight %4.1f",  previous_set_grind_weight);
+  //Serial.println(display_buffer);
 
   // check if grind time is already written in EEPROM
-  set_grind_weight_eeprom = EEPROM.get(eeAddress, set_grind_weight);
-  Serial.print("set grind weight in eeprom ");
+  //EEPROM.get(eeAddress, set_grind_weight_eeprom);
+  // Serial.println(set_grind_weight_eeprom);
+
+  // snprintf(display_buffer, 20, "float %f\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  
+  // snprintf(display_buffer, 20, "HEX %x\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // snprintf(display_buffer, 20, "int %i\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // snprintf(display_buffer, 20, "string %s\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // snprintf(display_buffer, 20, "double %d\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // snprintf(display_buffer, 20, "char %c\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // snprintf(display_buffer, 20, "unit %u\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  
+  // snprintf(display_buffer, 20, "signed floating point %a\n",  set_grind_weight_eeprom);
+  // Serial.println(display_buffer);
+  // Serial.println("it didnt work did it?");
+
+  // if (set_grind_weight_eeprom == 0){
+  //   Serial.print("set grind weight in eeprom, was 0. Setting to ");
+  //   Serial.println(set_grind_weight);
+  //   //eeprom.put(eeAddress, set_grind_weight);
+  // }
+
+ // check if grind time is already written in EEPROM
+  //eeprom.get(eeAddress, set_grind_weight_eeprom);
+  
+  Serial.print("Set grind weight: ");
   Serial.println(set_grind_weight_eeprom);
-  if (set_grind_weight_eeprom == 0){
-    Serial.print("set grind weight in eeprom, was 0. Setting to ");
-    Serial.println(set_grind_weight);
-    EEPROM.put(eeAddress, set_grind_weight);
-  }
 
   pinMode(upButtonPin, INPUT_PULLUP);
   pinMode(downButtonPin, INPUT_PULLUP);
@@ -103,30 +127,35 @@ void setup() {
   
   pinMode(grindActivatePin, OUTPUT);
 
-
   //Get the float data from the EEPROM at position 'eeAddress'
-  EEPROM.get(eeAddress, set_grind_weight);
+  //eeprom.get(eeAddress, set_grind_weight_eeprom);
   if(debug){Serial.println(set_grind_weight);}  //This may print 'ovf, nan' if the data inside the EEPROM is not a valid float.
 
-  //TODO: why does this crash the szstem!!
-  //u8g2.setI2CAddress(oled_i2c * 2);
-  //u8g2.begin();
+  //buttons = NONE;
+  Serial.print("button state ");
+  Serial.println(buttons);
 
-  if (debug){Serial.println(state);}
-  
-  //u8g2.clearBuffer();					// clear the internal memory
-  //u8g2.setFont(u8g2_font_ncenB08_tr);	// choose a suitable font
-  //u8g2.drawStr(0, 10, "Display init");	// write something to the internal memory
-  //u8g2.sendBuffer();					// transfer internal memory to the display
+  //state = WAITING;
+  Serial.print("machine state ");
+  Serial.println(state);
 
+  // if (debug){
+  //   snprintf(display_buffer, 20, "State %i",  state);
+  //   Serial.println(display_buffer);
+  // }
+
+  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;); // Don't proceed, loop forever
+  }
+
+  display_off();
+
+  Serial.println("Setup finished");
 }
 
 
-void OLED_display(float msg_num){
-  // to do OLED printing goes here
-  Serial.print(msg_num);
-  Serial.println("display requst");
-}
 
 void OLED_off(){
   // TOOD, turn OLED off goes here
@@ -141,64 +170,77 @@ void get_weight(){
 
 }
 
-void machine_state_void()
- {
-   switch(state)
-   {
-      case WAITING:
-        buttons = button_management();
-      
-        if(buttons == BUTTON_DOWN || buttons == BUTTON_UP){
-          if(debug){Serial.println("enter set time mode");}
-          OLED_display(set_grind_weight);
-          state = SET_WEIGHT;
-        }
-        else if(buttons == BUTTON_GRIND){
-          if(debug){Serial.println("enter grind mode from waiting");}
-          state = GRIND;
-        }
+void machine_state_void(){
 
-        break;
-        
-      case SET_WEIGHT:
-        buttons = button_management();
-        
-        if(buttons == BUTTON_GRIND){
-          if(debug){Serial.println("enter grind mode from set time");}
-          state = GRIND;
-        }
-        
-        setup_time_counter++;
+  Serial.println("entered machine state void");
+  //strcpy(OLED_msg, "Wating");
+  button_management();
+  Serial.println("finished button managment");
+  Serial.println("button is: ");
+  Serial.println(buttons);
 
-        break;
+  switch (state) {
 
-      case GRIND:
-        break;
+    case WAITING:
+      Serial.println("Waiting state");
 
-      case TRAILING_GRIND:
+      if(buttons == BUTTON_DOWN || buttons == BUTTON_UP){
+        if(debug){Serial.println("enter set time mode");}
+        //OLED_display("set_grind_weight");
+        state = SET_WEIGHT;
+      }
+      else if(buttons == BUTTON_GRIND){
+        if(debug){Serial.println("enter grind mode from waiting");}
+        //OLED_display("enter grind");
+        state = GRIND;          
+      }
+
       break;
-   }
- }
+      
+    case SET_WEIGHT:
+      Serial.print("Set weight state");
+      
+      if(buttons == BUTTON_GRIND){
+        if(debug){Serial.println("enter grind mode from set time");}
+        state = GRIND;
+      }
+
+      break;
+
+    case GRIND:
+      Serial.println("grind state");
+      break;
+
+    case TRAILING_GRIND:
+      Serial.println("trail grind state");
+      break;
+  }
+}
+
 
 void run_machine(){
 
-   if (state == GRIND){
+  if (state == GRIND){
 
     if(debug){
       Serial.println("Running Grind state");
-      Serial.print("grind set" );
-      Serial.println(set_grind_weight);
-      Serial.print("current weight");
-      Serial.println(current_weight);
+
+      //sprintf(display_buffer, "Grind set %3.1f",  set_grind_weight);
+      //Serial.println(display_buffer);
+      
+      //sprintf(display_buffer, "current weight %3.1f",  current_weight);
+      //Serial.println(display_buffer);
       }
 
     digitalWrite(grindActivatePin, HIGH);
 
-    //  OLED_display(current_weight);
+    dtostrf(current_weight, 4, 2, str_number);
+    sprintf(text_buffer, "G - %s - ", str_number);  
+    drawCharArry(text_buffer);
     
     get_weight();
  
-    Serial.print("after updating weights");
+    Serial.print("after updating weights: ");
     Serial.println(current_weight);
 
     if (current_weight >= set_grind_weight) {
@@ -207,23 +249,26 @@ void run_machine(){
       state = TRAILING_GRIND;
       time_grind_finished = millis();
     }  
-   }
+  }
 
    if (state == TRAILING_GRIND){
      // display final weight for a bit and then turn off display unit
 
-     OLED_display(current_weight);
+     //OLED_display("current_weight");
 
-     Serial.println("entered trailing mode");
-     Serial.println(millis() - time_grind_finished);
-     Serial.println(display_off_delay);
-
-     if ((millis() - time_grind_finished) >= display_off_delay){
-       current_weight = 0;
-       OLED_off();
-       state = WAITING;
-     }
-   }
+      if ((millis() - time_grind_finished) >= display_off_delay){
+        current_weight = 0;
+        display_off();
+        state = WAITING;
+      
+        Serial.print("exited trailing after: ");
+        Serial.print((millis() - time_grind_finished)/1000);
+        Serial.println("seconds.");
+      } else {
+        Serial.print("In trailing mode, time left: ");
+        Serial.println((display_off_delay - (millis()-time_grind_finished)) / 1000);
+      }
+    }
 
   if (state == SET_WEIGHT){
     // TO DO: TURN INDICATOR LIGHTS ON when entering set mode
@@ -231,41 +276,48 @@ void run_machine(){
 
     //previous_set_grind_weight = set_grind_weight;
 
-    Serial.println("set weight mode ");
-    Serial.println("previous set weight");
-    Serial.println(previous_set_grind_weight);
-    Serial.println("new set weight ");
-    Serial.println(set_grind_weight);
-        
-    if(buttons == BUTTON_UP){
+    //snprintf(display_buffer, 100, "Previous set weight %4.1f",  previous_set_grind_weight);
+    //Serial.println(display_buffer);
+    //snprintf(display_buffer, 100, "New set weight %4.1f",  set_grind_weight);
+    //Serial.println(display_buffer);
+
+    if (buttons == BUTTON_UP){
 
       set_grind_weight = set_grind_weight + set_weight_incriment;            
-      setup_time_counter = 0;
+      time_last_setup_b_press = millis();
 
       if(set_grind_weight > max_grind_weight){
         set_grind_weight = max_grind_weight;
       }
-
-      OLED_display(set_grind_weight);
-
     } else if(buttons == BUTTON_DOWN){
 
       set_grind_weight = set_grind_weight - set_weight_incriment;            
-      setup_time_counter = 0;
+      time_last_setup_b_press = millis();
 
       if(set_grind_weight < min_grind_weight){
         set_grind_weight = min_grind_weight;
       }
+    }
 
-      OLED_display(set_grind_weight);
+    Serial.print("set weight previous: ");
+    Serial.println(previous_set_grind_weight);
+    Serial.println("new set weight: ");
+    Serial.println(set_grind_weight);    
 
-    } else if(setup_time_counter > setup_time_limit){
+    dtostrf(set_grind_weight, 4, 2, str_number);
+    sprintf(text_buffer, "W - %s - ", str_number);  
+    drawCharArry(text_buffer);
+    
+    if((millis() - time_last_setup_b_press) > time_exit_setup_after_last_presss){
 
+      Serial.println("exiting set weight mode");
       Serial.println("write set grind weight to EEPROM");
-      EEPROM.put(eeAddress, set_grind_weight);
+      //eeprom.put(eeAddress, set_grind_weight);
       state = WAITING;
-      OLED_off();
-      setup_time_counter = 0;
+      display_off();
+    } else {
+        Serial.print("In set weight mode, time left: ");
+        Serial.println((time_exit_setup_after_last_presss - (millis() - time_last_setup_b_press)) / 1000);
     }
   }
 }
@@ -284,32 +336,24 @@ void countdown_grind_time(){
     state = WAITING;
     if (debug){Serial.println("grind finished");}
    }
-  else
-  {
-
-    
+  else {
     if (debug){
       Serial.print(state);
       Serial.print("Grinding with: ");
     }
 
- 
     // check if "interval" time has passed (100 econds)
     if ((unsigned long)(currentCounter - previousCounter) >= interval) {
-       previousCounter = currentCounter;
-       currentCounter = 0;
-       OLED_display(current_weight);
-       }  
+      previousCounter = currentCounter;
+      currentCounter = 0;
+      //OLED_display("current_weight");
+    }  
   }
   
 }
 
 
-uint8_t button_management(){
-   
-  enum Button_enum Button_action;
-
-  Button_action = NONE;
+void button_management(){
    
   // --------------- detect Down button push -------------
   delay(25);
@@ -341,33 +385,36 @@ uint8_t button_management(){
     grindButtonPrevState = grindButtonState;
   }
   
-  // ----------- set button action --------------
+  // ----------- set button state --------------
+
+  // as default buttons is NONE
+  buttons = NONE;
 
   if(downButtonPressed && !upButtonPressed){ 
     if(debug){Serial.println("down");}
-    Button_action = BUTTON_DOWN;
+    buttons = BUTTON_DOWN;
   }
 
  if(upButtonPressed && !downButtonPressed){
     if(debug){Serial.println("up");}
-    Button_action = BUTTON_UP;
+    buttons = BUTTON_UP;
   }
 
  if(grindButtonPressed){
     if(debug){Serial.println("grind button pressed");}
-    Button_action = BUTTON_GRIND;
+    buttons = BUTTON_GRIND;
   }
-
-  return Button_action;    
 }
 
 
 void loop() {
-  // put your main code here, to run repeatedly:
- 
- machine_state_void();
- run_machine();
- delay(200);
+  
+  Serial.println("looping...");
+  machine_state_void();
+  run_machine();
 
+  delay(100);
+  
+  
 
 }
