@@ -190,6 +190,7 @@ void machine_state_void(){
         state = SET_WEIGHT;
       }
       else if(buttons == BUTTON_GRIND){
+        current_weight = 0;
         if(debug){Serial.println("enter grind mode from waiting");}
         //OLED_display("enter grind");
         state = GRIND;          
@@ -201,6 +202,7 @@ void machine_state_void(){
       Serial.print("Set weight state");
       
       if(buttons == BUTTON_GRIND){
+        current_weight = 0;
         if(debug){Serial.println("enter grind mode from set time");}
         state = GRIND;
       }
@@ -213,6 +215,19 @@ void machine_state_void(){
 
     case TRAILING_GRIND:
       Serial.println("trail grind state");
+      
+      if(buttons == BUTTON_DOWN || buttons == BUTTON_UP){
+        if(debug){Serial.println("enter set time mode");}
+        //OLED_display("set_grind_weight");
+        state = SET_WEIGHT;
+      }
+      else if(buttons == BUTTON_GRIND){
+        current_weight = 0;
+        if(debug){Serial.println("enter grind mode from waiting");}
+        //OLED_display("enter grind");
+        state = GRIND;          
+      }
+
       break;
   }
 }
@@ -233,15 +248,13 @@ void run_machine(){
       }
 
     digitalWrite(grindActivatePin, HIGH);
-
-    dtostrf(current_weight, 4, 2, str_number);
-    sprintf(text_buffer, "G - %s - ", str_number);  
-    drawCharArry(text_buffer);
     
     get_weight();
  
     Serial.print("after updating weights: ");
     Serial.println(current_weight);
+
+    drawWeightScreen(current_weight);
 
     if (current_weight >= set_grind_weight) {
       Serial.println("reached set weight");
@@ -257,7 +270,6 @@ void run_machine(){
      //OLED_display("current_weight");
 
       if ((millis() - time_grind_finished) >= display_off_delay){
-        current_weight = 0;
         display_off();
         state = WAITING;
       
@@ -265,6 +277,9 @@ void run_machine(){
         Serial.print((millis() - time_grind_finished)/1000);
         Serial.println("seconds.");
       } else {
+  
+        drawWeightScreen(current_weight);
+        
         Serial.print("In trailing mode, time left: ");
         Serial.println((display_off_delay - (millis()-time_grind_finished)) / 1000);
       }
@@ -304,10 +319,12 @@ void run_machine(){
     Serial.println("new set weight: ");
     Serial.println(set_grind_weight);    
 
-    dtostrf(set_grind_weight, 4, 2, str_number);
-    sprintf(text_buffer, "W - %s - ", str_number);  
-    drawCharArry(text_buffer);
+    // dtostrf(set_grind_weight, 4, 2, str_number);
+    // sprintf(text_buffer, "W - %s - ", str_number);  
+    // drawCharArry(text_buffer);
     
+    drawSetWeightScreen(previous_set_grind_weight, set_grind_weight);
+
     if((millis() - time_last_setup_b_press) > time_exit_setup_after_last_presss){
 
       Serial.println("exiting set weight mode");
