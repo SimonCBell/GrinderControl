@@ -40,6 +40,7 @@ int eeAddress = 0; //EEPROM address to start reading from
 float set_grind_weight = 5; //Variable to store data read from EEPROM.
 float previous_set_grind_weight = set_grind_weight;
 float set_grind_weight_eeprom = 0.0f;
+float slow_grind_mode_weight = 1.5; // fast grind mode stops at set_grind_weight - slow_grind_mode_weight
 
 float current_weight = 0;
 float set_weight_incriment = 0.1;
@@ -64,7 +65,7 @@ double currentCounter = 0;
 
 
 
-enum State_enum {WAITING, SET_WEIGHT, TARE_SCALES, GRIND, TRAILING_GRIND};
+enum State_enum {WAITING, SET_WEIGHT, TARE_SCALES, GRIND_FAST, GRIND_SLOW, TRAILING_GRIND};
 enum Button_enum {NONE, BUTTON_UP, BUTTON_DOWN, BUTTON_GRIND};
 
 Button_enum buttons = NONE;
@@ -235,8 +236,12 @@ void machine_state_void(){
 
       break;
 
-    case GRIND:
-      Serial.println("grind state");
+    case GRIND_FAST:
+      Serial.println("grind fast state");
+      break;
+
+    case GRIND_SLOW:
+      Serial.println("grind slow state");
       break;
 
     case TARE_SCALES:
@@ -267,10 +272,10 @@ void run_machine(){
 
   if (state == TARE_SCALES){
     tare_scales();
-    state = GRIND;
+    state =GRIND_FAST;
   }
 
-  if (state == GRIND){
+  if (state ==GRIND_FAST){
 
     previous_set_grind_weight = set_grind_weight;
 
@@ -293,10 +298,27 @@ void run_machine(){
 
     drawWeightScreen(current_weight);
 
-    if (current_weight >= set_grind_weight) {
+    if (current_weight >= set_grind_weight - slow_grind_mode_weight) {
       digitalWrite(grindActivatePin, LOW);
-      Serial.println("reached set weight");
+      Serial.println("reached fast grind set weight");
+      state = GRIND_SLOW;
+    }  
+  }
 
+  if (state == GRIND_SLOW){
+
+    digitalWrite(grindActivatePin, HIGH);
+    delay(200);
+    digitalWrite(grindActivatePin, LOW);
+    delay(500);
+    get_weight(10);
+ 
+    Serial.print("after updating weights: ");
+    Serial.println(current_weight);
+
+    drawWeightScreen(current_weight);
+
+    if (current_weight >= set_grind_weight) {
       get_weight(10); //get more accurate reading of weight by averaging 10 times
       Serial.print("after updating weights: ");
       Serial.println(current_weight);
@@ -305,7 +327,7 @@ void run_machine(){
       shutdown_scales();
       state = TRAILING_GRIND;
       time_grind_finished = millis();
-    }  
+    }
   }
 
    if (state == TRAILING_GRIND){
