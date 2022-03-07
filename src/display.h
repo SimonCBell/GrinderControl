@@ -40,6 +40,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 #define LOGO_HEIGHT   16
 #define LOGO_WIDTH    16
+
+int x_cursor;
+
 static const unsigned char PROGMEM logo_bmp[] =
 { 0b00000000, 0b11000000,
   0b00000001, 0b11000000,
@@ -295,20 +298,32 @@ void drawWeightScreen(float num_line){
   display.setFont();
   display.setTextSize(2);
 
-  if (num_line<10.0){
-    display.setCursor(30, 12);
-    display.println(num_line);
-  } else {
-    display.setCursor(18, 12);
-    display.println(num_line);
+  x_cursor = 52;
+
+  if (num_line > 10.0 && num_line < 100){
+    x_cursor = x_cursor - 12;
+  } else if (num_line > 100) {
+    x_cursor = x_cursor - 24;
   }
 
-  display.setCursor(78, 12);
+  if (num_line < 0.0 && num_line > -10){
+    x_cursor = x_cursor - 12;
+  } else if (num_line < -10.0 && num_line > -100) {
+    x_cursor = x_cursor - 24;
+  } else if (num_line < -100.0) {
+    x_cursor = x_cursor - 36;
+  }  
+
+  display.setCursor(x_cursor, 12);
+  display.println(num_line, 1);
+
+  display.setCursor(88, 12);
   display.println("g");
 
   display.display();      // Show initial text
   delay(100);
 }
+
 
 void drawSetWeightScreen(float num_line1, float num_line2){
 

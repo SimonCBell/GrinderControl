@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 #include "display.h"
+#include "HX711.h"
 
 #ifdef U8X8_HAVE_HW_SPI
 #include <SPI.h>
@@ -17,8 +18,8 @@ unsigned long time_grind_finished;
 
 
 bool debug = 1;
-const int downButtonPin = 11;
-const int upButtonPin = 12;
+const int downButtonPin = 12;
+const int upButtonPin = 11;
 const int grindButtonPin = 4;
 
 const int grindActivatePin = A0;
@@ -36,7 +37,7 @@ bool downButtonPressed = false;
 bool grindButtonPressed = false;
   
 int eeAddress = 0; //EEPROM address to start reading from
-float set_grind_weight = 10.0; //Variable to store data read from EEPROM.
+float set_grind_weight = 5; //Variable to store data read from EEPROM.
 float previous_set_grind_weight = set_grind_weight;
 float set_grind_weight_eeprom = 0.0f;
 
@@ -47,6 +48,13 @@ float min_grind_weight = 2;
 unsigned long time_last_setup_b_press;
 unsigned long time_exit_setup_after_last_presss = 5 * 1000;
 
+// Scaless: HX711 circuit wiring
+const int LOADCELL_DOUT_PIN = 3;
+const int LOADCELL_SCK_PIN = 2;
+int N; //number of scale readings to average
+
+HX711 scale;
+
 int secs;
 int tenths_secs;
 
@@ -56,7 +64,7 @@ double currentCounter = 0;
 
 
 
-enum State_enum {WAITING, SET_WEIGHT, GRIND, TRAILING_GRIND};
+enum State_enum {WAITING, SET_WEIGHT, TARE_SCALES, GRIND, TRAILING_GRIND};
 enum Button_enum {NONE, BUTTON_UP, BUTTON_DOWN, BUTTON_GRIND};
 
 Button_enum buttons = NONE;
@@ -115,42 +123,54 @@ void setup() {
   //   //eeprom.put(eeAddress, set_grind_weight);
   // }
 
- // check if grind time is already written in EEPROM
+
+
+
+
+  // ------------ get set grind weight from EEPROM
+  // TODO: get this working!
+  // check if grind time is already written in EEPROM
+  // if yes, take saved value, if not take default, and save in EEPROM
   //eeprom.get(eeAddress, set_grind_weight_eeprom);
-  
+  if(debug){Serial.println(set_grind_weight);}  //This may print 'ovf, nan' if the data inside the EEPROM is not a valid float.
+
   Serial.print("Set grind weight: ");
   Serial.println(set_grind_weight_eeprom);
 
+  // ------------ define pins ---------------
   pinMode(upButtonPin, INPUT_PULLUP);
   pinMode(downButtonPin, INPUT_PULLUP);
   pinMode(grindButtonPin, INPUT_PULLUP);
   
   pinMode(grindActivatePin, OUTPUT);
 
-  //Get the float data from the EEPROM at position 'eeAddress'
-  //eeprom.get(eeAddress, set_grind_weight_eeprom);
-  if(debug){Serial.println(set_grind_weight);}  //This may print 'ovf, nan' if the data inside the EEPROM is not a valid float.
-
-  //buttons = NONE;
+  // ----------- initalise button and machine states
+  buttons = NONE;
   Serial.print("button state ");
   Serial.println(buttons);
 
-  //state = WAITING;
+  state = WAITING;
   Serial.print("machine state ");
   Serial.println(state);
 
-  // if (debug){
-  //   snprintf(display_buffer, 20, "State %i",  state);
-  //   Serial.println(display_buffer);
-  // }
 
+  // ----------------- setup OLED ------------------------
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-
   display_off();
+
+  // ------------setup scales ---------------------
+  Serial.println("HX711 Demo");
+  Serial.println("Initializing the scale");
+  
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(-2177.5);                      // this value is obtained by calibrating the scale with known weights; see the README for details
+  
+  scale.power_down();			        // put the ADC in sleep mode
+  delay(100);
 
   Serial.println("Setup finished");
 }
@@ -162,12 +182,18 @@ void OLED_off(){
   Serial.println("turn display off");
 }
 
+void tare_scales(){
+  scale.power_up();
+  scale.tare();				        // reset the scale to 0
+}
 
-void get_weight(){
+void shutdown_scales(){
+    scale.power_down();
+}
 
-  // TODO: put in reading of scales here
-  current_weight ++;
+void get_weight(int N){
 
+  current_weight = scale.get_units(N);
 }
 
 void machine_state_void(){
@@ -193,7 +219,7 @@ void machine_state_void(){
         current_weight = 0;
         if(debug){Serial.println("enter grind mode from waiting");}
         //OLED_display("enter grind");
-        state = GRIND;          
+        state = TARE_SCALES;          
       }
 
       break;
@@ -204,13 +230,17 @@ void machine_state_void(){
       if(buttons == BUTTON_GRIND){
         current_weight = 0;
         if(debug){Serial.println("enter grind mode from set time");}
-        state = GRIND;
+        state = TARE_SCALES;
       }
 
       break;
 
     case GRIND:
       Serial.println("grind state");
+      break;
+
+    case TARE_SCALES:
+      Serial.println("Tare scales state");
       break;
 
     case TRAILING_GRIND:
@@ -225,7 +255,7 @@ void machine_state_void(){
         current_weight = 0;
         if(debug){Serial.println("enter grind mode from waiting");}
         //OLED_display("enter grind");
-        state = GRIND;          
+        state = TARE_SCALES;          
       }
 
       break;
@@ -235,7 +265,14 @@ void machine_state_void(){
 
 void run_machine(){
 
+  if (state == TARE_SCALES){
+    tare_scales();
+    state = GRIND;
+  }
+
   if (state == GRIND){
+
+    previous_set_grind_weight = set_grind_weight;
 
     if(debug){
       Serial.println("Running Grind state");
@@ -249,7 +286,7 @@ void run_machine(){
 
     digitalWrite(grindActivatePin, HIGH);
     
-    get_weight();
+    get_weight(1);
  
     Serial.print("after updating weights: ");
     Serial.println(current_weight);
@@ -257,18 +294,25 @@ void run_machine(){
     drawWeightScreen(current_weight);
 
     if (current_weight >= set_grind_weight) {
-      Serial.println("reached set weight");
       digitalWrite(grindActivatePin, LOW);
+      Serial.println("reached set weight");
+
+      get_weight(10); //get more accurate reading of weight by averaging 10 times
+      Serial.print("after updating weights: ");
+      Serial.println(current_weight);
+      drawWeightScreen(current_weight);
+
+      shutdown_scales();
       state = TRAILING_GRIND;
       time_grind_finished = millis();
     }  
   }
 
    if (state == TRAILING_GRIND){
-     // display final weight for a bit and then turn off display unit
+      // display final weight for a bit and then turn off display unit
 
-     //OLED_display("current_weight");
-
+      //OLED_display("current_weight");
+      
       if ((millis() - time_grind_finished) >= display_off_delay){
         display_off();
         state = WAITING;
@@ -326,6 +370,8 @@ void run_machine(){
     drawSetWeightScreen(previous_set_grind_weight, set_grind_weight);
 
     if((millis() - time_last_setup_b_press) > time_exit_setup_after_last_presss){
+      
+      previous_set_grind_weight = set_grind_weight;
 
       Serial.println("exiting set weight mode");
       Serial.println("write set grind weight to EEPROM");
@@ -338,9 +384,6 @@ void run_machine(){
     }
   }
 }
-
-
-
 
 
 
@@ -373,7 +416,7 @@ void countdown_grind_time(){
 void button_management(){
    
   // --------------- detect Down button push -------------
-  delay(25);
+  delay(10);
   
   downButtonPressed = false;
   downButtonState = digitalRead(downButtonPin);
@@ -382,7 +425,7 @@ void button_management(){
     downButtonPrevState = downButtonState;
   }
 
-  delay(50);
+  //delay(25);
   
   // ----------- detect Up button push -------------
   upButtonPressed = false;
@@ -391,7 +434,7 @@ void button_management(){
     upButtonPressed = upButtonState == LOW;
     upButtonPrevState = upButtonState;
   }
-  delay(35);
+  //delay(25);
 
   // ------------ detect Grind button push ------------
   grindButtonPressed = false;
@@ -430,7 +473,7 @@ void loop() {
   machine_state_void();
   run_machine();
 
-  delay(100);
+  delay(25);
   
   
 
