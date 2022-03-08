@@ -37,9 +37,9 @@ bool downButtonPressed = false;
 bool grindButtonPressed = false;
   
 int eeAddress = 0; //EEPROM address to start reading from
-float set_grind_weight = 5; //Variable to store data read from EEPROM.
+float eeprom_storeage_variable = 0.00f;
+float set_grind_weight = 19.5; //Variable to store data read from EEPROM.
 float previous_set_grind_weight = set_grind_weight;
-float set_grind_weight_eeprom = 0.0f;
 float slow_grind_mode_weight = 1.5; // fast grind mode stops at set_grind_weight - slow_grind_mode_weight
 
 float current_weight = 0;
@@ -91,52 +91,22 @@ void setup() {
   Serial.begin(57600);
   Serial.println("------------- setup ----------------------");
 
-  //snprintf(display_buffer, 20, "Previous set weight %4.1f",  previous_set_grind_weight);
-  //Serial.println(display_buffer);
+  // -------- define set grind weight--------------
+  // check if set grind weight is already written in EEPROM
+  // otherwise take default and write it in EEPROM 
+  EEPROM.get(eeAddress, eeprom_storeage_variable);
 
-  // check if grind time is already written in EEPROM
-  //EEPROM.get(eeAddress, set_grind_weight_eeprom);
-  // Serial.println(set_grind_weight_eeprom);
+  if (eeprom_storeage_variable <= 0 || isnan(eeprom_storeage_variable)){
+    Serial.print("Set grind weight in EEPROM was invalid. Write set grind weight in eeprom to default: ");
+    Serial.println(set_grind_weight);
+    EEPROM.put(eeAddress, set_grind_weight);
 
-  // snprintf(display_buffer, 20, "float %f\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  
-  // snprintf(display_buffer, 20, "HEX %x\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // snprintf(display_buffer, 20, "int %i\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // snprintf(display_buffer, 20, "string %s\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // snprintf(display_buffer, 20, "double %d\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // snprintf(display_buffer, 20, "char %c\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // snprintf(display_buffer, 20, "unit %u\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  
-  // snprintf(display_buffer, 20, "signed floating point %a\n",  set_grind_weight_eeprom);
-  // Serial.println(display_buffer);
-  // Serial.println("it didnt work did it?");
-
-  // if (set_grind_weight_eeprom == 0){
-  //   Serial.print("set grind weight in eeprom, was 0. Setting to ");
-  //   Serial.println(set_grind_weight);
-  //   //eeprom.put(eeAddress, set_grind_weight);
-  // }
-
-
-
-
-
-  // ------------ get set grind weight from EEPROM
-  // TODO: get this working!
-  // check if grind time is already written in EEPROM
-  // if yes, take saved value, if not take default, and save in EEPROM
-  //eeprom.get(eeAddress, set_grind_weight_eeprom);
-  if(debug){Serial.println(set_grind_weight);}  //This may print 'ovf, nan' if the data inside the EEPROM is not a valid float.
-
-  Serial.print("Set grind weight: ");
-  Serial.println(set_grind_weight_eeprom);
+  } else{
+    Serial.print("Set grind weight from EEPROM is valid: ");
+    Serial.print(eeprom_storeage_variable);
+    Serial.println(" g");     // if set grind weight in EEPROM is valid, write it to set grind weight
+    set_grind_weight = eeprom_storeage_variable;
+  }
 
   // ------------ define pins ---------------
   pinMode(upButtonPin, INPUT_PULLUP);
