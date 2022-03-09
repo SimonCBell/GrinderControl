@@ -22,7 +22,6 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "Fonts/TomThumb.h"
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
@@ -279,17 +278,35 @@ void display_off(){
   display.display();
 }
 
-void drawCharArry(char text[100]){
+void drawSetWeightScreen(float num_line1, float num_line2){
 
   display.clearDisplay();
-  //display.setTextSize(2); // Draw 2X-scale text
-  display.setFont(&TomThumb);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(10, 15);
-  display.println(text);
+  
+  display.setFont();
+  display.setTextSize(1);
+  display.setCursor(5, 5);
+  display.println("Old");
+
+  display.setCursor(40, 5);
+  display.println(num_line1);
+
+  display.setCursor(73, 5);
+  display.println("g");
+
+  display.setCursor(5, 20);
+  display.println("New");
+
+  display.setCursor(40, 20);
+  display.println(num_line2);
+  
+  display.setCursor(73, 20);
+  display.println("g");
+
   display.display();      // Show initial text
   delay(100);
 }
+
 
 void drawWeightScreen(float num_line){
 
@@ -319,40 +336,6 @@ void drawWeightScreen(float num_line){
 
   display.setCursor(88, 12);
   display.println("g");
-
-  display.display();      // Show initial text
-  delay(100);
-}
-
-
-void drawSetWeightScreen(float num_line1, float num_line2){
-
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-  
-  display.setFont();
-  display.setTextSize(1);
-  display.setCursor(5, 5);
-  display.println("Old");
-
-  //display.setFont(&TomThumb);
-  display.setCursor(40, 5);
-  display.println(num_line1);
-
-  display.setCursor(73, 5);
-  display.println("g");
-
-  //display.setFont();
-  display.setCursor(5, 20);
-  display.println("New");
-
-  //display.setFont(&TomThumb);
-  display.setCursor(40, 20);
-  display.println(num_line2);
-  
-  display.setCursor(73, 20);
-  display.println("g");
-
 
   display.display();      // Show initial text
   delay(100);
