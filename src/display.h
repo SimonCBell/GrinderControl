@@ -341,6 +341,17 @@ void drawWeightScreen(float num_line){
   delay(100);
 }
 
+void drawAbortText(void) {
+  display.clearDisplay();
+
+  display.setTextSize(2); // Draw 2X-scale text
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 0);
+  display.println(F("Aborted."));
+
+  display.display();      // Show initial text
+  delay(100);
+}
 
 void testscrolltext(void) {
   display.clearDisplay();
