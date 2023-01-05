@@ -25,8 +25,8 @@ bool debug_low = 0;  // debug prints that print each loop (lots!!!)
 bool debug_high = 0; // debug prints that print when a state changes or a button is pressed (not sooo many)
 bool debug_must = 0; // debug prints that print when a state changes or a button is pressed (not sooo many)
 
-unsigned long last_print_time = 0;
-const unsigned long print_delay = 1 * 1000;
+unsigned long last_print_time = 0L;
+const unsigned long print_delay = 1 * 1000L;
 
 const int downButtonPin = 12;
 const int upButtonPin = 11;
@@ -57,7 +57,7 @@ float set_weight_incriment = 0.1;
 float max_grind_weight = 100.0;
 float min_grind_weight = 2.0;
 unsigned long time_last_setup_b_press;
-unsigned long time_exit_setup_after_last_presss = 5.0 * 1000;
+unsigned long time_exit_setup_after_last_presss = 5.0 * 1000L;
 
 // Scaless: HX711 circuit wiring
 const int LOADCELL_DOUT_PIN = 3;
