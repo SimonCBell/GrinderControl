@@ -76,6 +76,7 @@ enum State_enum
   FINAL_DISPLAY,
   SAFETY_STOP_GRIND
 };
+
 enum Button_enum
 {
   NONE,
@@ -91,13 +92,9 @@ State_enum state = WAITING;
 // Method forward declarations
 void setup();
 void machine_state_void();
-void update_machine_state();
 void run_machine();
-void display_all_on();
-void countdown_grind_time();
 void button_management();
 void loop();
-void get_weight();
 void slow_serial_println(char serial_print_string[80]);
 
 void setup()
@@ -528,8 +525,6 @@ void run_machine()
       if (debug_must)
       {
         slow_serial_println("exiting set weight mode write set grind weight to EEPROM");
-        //Serial.println("exiting set weight mode");
-        //Serial.println("write set grind weight to EEPROM");
       }
       EEPROM.put(eeAddress, set_grind_weight);
       state = WAITING;
@@ -542,32 +537,6 @@ void run_machine()
         snprintf (serial_print_string, sizeof(serial_print_string), "In set weight state, time left: %lu", (time_exit_setup_after_last_presss - (millis() - time_last_setup_b_press)) / 1000);
         slow_serial_println(serial_print_string);
       }
-    }
-  }
-}
-
-
-
-void countdown_grind_time()
-{
-
-  // Checking whether time is up or not
-  if (current_weight <= 0.0)
-  {
-    digitalWrite(grindActivatePin, LOW);
-    display_off();
-    state = WAITING;
-    if (debug_high)
-    {
-      Serial.println("grind finished");
-    }
-  }
-  else
-  {
-    if (debug_low)
-    {
-      Serial.print(state);
-      Serial.print("Grinding with: ");
     }
   }
 }
