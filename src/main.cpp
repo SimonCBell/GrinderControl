@@ -20,9 +20,11 @@ unsigned long start_grind_time;
 unsigned long current_grind_time;
 unsigned long grind_time_duration;
 
+// WARNING too many serial prints kill OLED initalisation WARNING
 bool debug_low = 0;  // debug prints that print each loop (lots!!!)
 bool debug_high = 0; // debug prints that print when a state changes or a button is pressed (not sooo many)
 bool debug_must = 0; // debug prints that print when a state changes or a button is pressed (not sooo many)
+
 unsigned long last_print_time = 0;
 const unsigned long print_delay = 1 * 1000;
 
