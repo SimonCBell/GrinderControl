@@ -278,7 +278,7 @@ void machine_state_void()
     {
       if (debug_must)
       {
-        Serial.println("enter set weight mode from trailing");
+        Serial.println("enter set weight state from final display state");
       }
       state = SET_WEIGHT;
     }
@@ -287,7 +287,7 @@ void machine_state_void()
       current_weight = 0;
       if (debug_must)
       {
-        Serial.println("enter grind state from waiting");
+        Serial.println("enter grind state from waiting state");
       }
       state = INITALISE_GRIND;
     }
@@ -370,7 +370,7 @@ void run_machine()
       digitalWrite(grindActivatePin, LOW);
       if (debug_must)
       {
-        Serial.println("reached fast grind set weight");
+        Serial.println("reached fast grind set weight, moving to slow grind");
       }
       state = GRIND_SLOW;
     }
@@ -403,7 +403,7 @@ void run_machine()
     }
     else
     {
-      if (debug_must)
+      if (debug_high)
       {
         snprintf (serial_print_string, sizeof(serial_print_string), "grind time duration in slow grind: %lu", grind_time_duration);
         slow_serial_println(serial_print_string);
@@ -471,7 +471,7 @@ void run_machine()
     // safety mechanism that aborts grinding to avoid grind running forever
     // triggered if max grind time was exceeded
 
-    if (debug_must)
+    if (debug_high)
     {
       Serial.println("safety time exceeded, aborting grind"); 
     }
