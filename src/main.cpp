@@ -278,7 +278,7 @@ void machine_state_void()
     {
       if (debug_must)
       {
-        Serial.println("enter set weight mode from trailing");
+        Serial.println("enter set weight state from final display state");
       }
       state = SET_WEIGHT;
     }
@@ -287,7 +287,7 @@ void machine_state_void()
       current_weight = 0;
       if (debug_must)
       {
-        Serial.println("enter grind state from waiting");
+        Serial.println("enter grind state from waiting state");
       }
       state = INITALISE_GRIND;
     }
@@ -324,9 +324,6 @@ void run_machine()
       Serial.println("Running fast grind state");
     }
 
-    //TODO : is this previous = set needed ? ? ?
-    //previous_set_grind_weight = set_grind_weight;
-
     // if max grind time exceeded, enter safety stop grind state
     current_grind_time = millis();
     grind_time_duration = current_grind_time - start_grind_time;
@@ -347,7 +344,7 @@ void run_machine()
       }
     }
   
-
+    // turn on grinder 
     digitalWrite(grindActivatePin, HIGH);
 
     // read scales without averaging, for fast response
@@ -367,12 +364,13 @@ void run_machine()
       Serial.println(set_grind_weight - slow_grind_state_delta_weight);
     }
 
+    // change state to slow grind, if current weight is just under set weight
     if (current_weight >= (set_grind_weight - slow_grind_state_delta_weight))
     {
       digitalWrite(grindActivatePin, LOW);
       if (debug_must)
       {
-        Serial.println("reached fast grind set weight");
+        Serial.println("reached fast grind set weight, moving to slow grind");
       }
       state = GRIND_SLOW;
     }
@@ -405,7 +403,7 @@ void run_machine()
     }
     else
     {
-      if (debug_must)
+      if (debug_high)
       {
         snprintf (serial_print_string, sizeof(serial_print_string), "grind time duration in slow grind: %lu", grind_time_duration);
         slow_serial_println(serial_print_string);
@@ -428,14 +426,29 @@ void run_machine()
 
     drawWeightScreen(current_weight);
 
+    // move into final display state once set weight is reached 
+    // move to fast grind if slow grind was entered too early
+    //    eg because of anomalous weight measurement
     if (current_weight >= set_grind_weight)
     {
+      if (debug_must)
+      {
+        Serial.print("Set weight achieved, moving to final display");
+      }
       drawWeightScreen(current_weight);
 
       shutdown_scales();
       start_final_display = millis();
       state = FINAL_DISPLAY;
-
+    }
+    else if (current_weight < (set_grind_weight - 1.5 * slow_grind_state_delta_weight))
+    {
+      if (debug_must)
+      {
+        Serial.print("False entry to slow, moving back to fast grind ");
+      }
+      drawWeightScreen(current_weight);
+      state = GRIND_FAST;
     }
   }
 
@@ -471,7 +484,7 @@ void run_machine()
     // safety mechanism that aborts grinding to avoid grind running forever
     // triggered if max grind time was exceeded
 
-    if (debug_must)
+    if (debug_high)
     {
       Serial.println("safety time exceeded, aborting grind"); 
     }
