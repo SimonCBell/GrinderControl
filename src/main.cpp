@@ -427,15 +427,28 @@ void run_machine()
     drawWeightScreen(current_weight);
 
     // move into final display state once set weight is reached 
-    //TODO: catch bug: slow grind was entered before it should have been
+    // move to fast grind if slow grind was entered too early
+    //    eg because of anomalous weight measurement
     if (current_weight >= set_grind_weight)
     {
+      if (debug_must)
+      {
+        Serial.print("Set weight achieved, moving to final display");
+      }
       drawWeightScreen(current_weight);
 
       shutdown_scales();
       start_final_display = millis();
       state = FINAL_DISPLAY;
-
+    }
+    else if (current_weight < (set_grind_weight - 1.5 * slow_grind_state_delta_weight))
+    {
+      if (debug_must)
+      {
+        Serial.print("False entry to slow, moving back to fast grind ");
+      }
+      drawWeightScreen(current_weight);
+      state = GRIND_FAST;
     }
   }
 
